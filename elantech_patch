@@ -1,0 +1,60 @@
+--- a/drivers/input/serio/i8042.c	
++++ a/drivers/input/serio/i8042.c	
+@@ -568,12 +568,18 @@ static int i8042_enable_aux_port(void)
+ 	i8042_ctr &= ~I8042_CTR_AUXDIS;
+ 	i8042_ctr |= I8042_CTR_AUXINT;
+ 
++        if (!i8042_command(&i8042_ctr, I8042_CMD_AUX_ENABLE)) {
++		pr_err("Failed to enable AUX port\n");
++        }
+ 	if (i8042_command(&i8042_ctr, I8042_CMD_CTL_WCTR)) {
+ 		i8042_ctr &= ~I8042_CTR_AUXINT;
+ 		i8042_ctr |= I8042_CTR_AUXDIS;
+ 		pr_err("Failed to enable AUX port\n");
+ 		return -EIO;
+ 	}
++        if (!i8042_command(&i8042_ctr, I8042_CMD_AUX_ENABLE)) {
++		pr_err("Failed to enable AUX port\n");
++        }
+ 
+ 	return 0;
+ }
+@@ -780,15 +786,36 @@ static int __init i8042_check_aux(void)
+ /*
+  * Bit assignment test - filters out PS/2 i8042's in AT mode
+  */
+-
++/*
+ 	if (i8042_toggle_aux(false)) {
+ 		pr_warn("Failed to disable AUX port, but continuing anyway... Is this a SiS?\n");
+ 		pr_warn("If AUX port is really absent please use the 'i8042.noaux' option\n");
+ 	}
+-
++*/
+ 	if (i8042_toggle_aux(true))
+ 		return -1;
+ 
++        /* for (unsigned int i = 0x0120; i <= 0x013f; ++i) {
++                unsigned char output;
++                i8042_command(&output, i);
++        }*/
++
++        //test second port of i8042
++        unsigned char output[10];
++        i8042_command(output, 0x01a9);
++
++        //diagnostic dump
++        i8042_command(output, 0x00ac);
++        int ii = 0;
++        while (!i8042_wait_read()) {
++                unsigned int status = i8042_read_status();
++                printk(KERN_WARNING "i8042 debug dump byte %d = %d, status = %d", ii, i8042_read_data(), status);
++                ++ii;
++        }
++
++        //reset the mouse
++        output[0] = 0xff;
++        i8042_command(output, 0x12ff);
+ /*
+  * Test AUX IRQ delivery to make sure BIOS did not grab the IRQ and
+  * used it for a PCI card or somethig else.
